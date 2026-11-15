@@ -215,3 +215,8 @@ targeted landings used by CI. Additional tests cover known disturbance recovery,
 noise rejection, outlier saturation, scenario aggregation, compensation signs, contact
 reset/bounce recovery, low-gravity engine switching, nominal-controller compatibility
 and two wind seeds that exercise the new landing behaviour.
+
+Original-controller compatibility is checked on fixed observations against action
+fixtures captured from the v0.1 commit. End-to-end Box2D checks assert a successful
+landing and score threshold rather than a Linux-specific exact episode reward;
+macOS/ARM can produce a different trajectory with the same seed.

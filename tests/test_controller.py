@@ -1,8 +1,11 @@
+import json
+from pathlib import Path
+
 import numpy as np
 
 from lunar_mpc.config import MPCConfig
 from lunar_mpc.controller import MPCController
-from lunar_mpc.model import FlightModel, decode_observation
+from lunar_mpc.model import FlightModel, decode_observation, engine_power
 
 
 def make_controller(seed=7):
@@ -53,3 +56,15 @@ def test_reset_drops_previous_episode_state():
     assert controller.tick == 0 and controller.plans == 0
     assert controller.prediction.size == 0
     np.testing.assert_array_equal(controller.bias, [0, 0])
+
+
+def test_nominal_controller_matches_original_commit_on_fixed_observations():
+    fixture = json.loads((Path(__file__).parent / "fixtures" / "v1_actions.json").read_text())
+    config = MPCConfig(**fixture["mpc"])
+    for case in fixture["cases"]:
+        controller = MPCController(config, FlightModel(), seed=case["seed"])
+        actual = controller.act(np.asarray(case["observation"], dtype=float))
+        # Commands inside a jet's dead zone are physically equivalent.
+        np.testing.assert_allclose(
+            engine_power(actual), engine_power(case["action"]), atol=1e-6, rtol=1e-6
+        )
