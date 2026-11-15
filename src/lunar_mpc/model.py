@@ -32,7 +32,7 @@ class FlightModel:
     mass: float = 4.958888843655586
     inertia: float = 0.90
 
-    def step(self, state, action, dt=0.02):
+    def step(self, state, action, dt=0.02, disturbance=None):
         """Semi-implicit Euler with averaged impulse forces at 50 Hz."""
         state = np.asarray(state, dtype=float)
         result = state.copy()
@@ -48,6 +48,22 @@ class FlightModel:
         # Gymnasium uses 17/30 in x but 14/30 in y for the side impulse point.
         arm = (14 / 30) * cosine**2 + (17 / 30) * sine**2 - 0.101307
         result[..., 5] -= dt * arm * side_force / self.inertia
+        if disturbance is not None:
+            result[..., 2:4] += dt * np.asarray(disturbance)[..., :2]
+            result[..., 5] += dt * np.asarray(disturbance)[..., 2]
         result[..., :2] += dt * result[..., 2:4]
         result[..., 4] += dt * result[..., 5]
+        return result
+
+    def coarse_step(self, state, action, dt, disturbance):
+        """One force evaluation per interval, retaining 50 Hz position integration.
+
+        Accelerations are frozen over the interval. Correcting positions matches
+        repeated 0.02 s semi-implicit steps under constant acceleration exactly.
+        """
+        state = np.asarray(state, dtype=float)
+        result = self.step(state, action, dt, disturbance)
+        correction = 0.5 * (dt - 0.02)
+        result[..., :2] -= correction * (result[..., 2:4] - state[..., 2:4])
+        result[..., 4] -= correction * (result[..., 5] - state[..., 5])
         return result

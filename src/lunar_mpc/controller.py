@@ -21,6 +21,17 @@ class MPCController:
         self.plans = 0
         self.last_cost = None
 
+    def _feedback(self, states):
+        return feedback(states, self.model)
+
+    def _targets(self, states):
+        return targets(states)
+
+    def _advance(self, states, action):
+        for _ in range(round(self.config.dt / 0.02)):
+            states = self.model.step(states, action)
+        return states
+
     def _rollout(self, state, offsets, record=False):
         c = self.config
         states = np.broadcast_to(state, (len(offsets), 6)).copy()
@@ -28,11 +39,10 @@ class MPCController:
         path = [states.copy()] if record else None
         for t in range(c.horizon):
             knot = min(t * c.knots // c.horizon, c.knots - 1)
-            action = np.clip(feedback(states, self.model) + offsets[:, knot], -1, 1)
+            action = np.clip(self._feedback(states) + offsets[:, knot], -1, 1)
             main, side = engine_power(action)
-            for _ in range(round(c.dt / 0.02)):
-                states = self.model.step(states, action)
-            angle_ref, vy_ref = targets(states)
+            states = self._advance(states, action)
+            angle_ref, vy_ref = self._targets(states)
             stage = (
                 0.15 * states[:, 0] ** 2
                 + 0.25 * states[:, 2] ** 2
@@ -85,7 +95,7 @@ class MPCController:
         if self.tick % self.config.replan_interval == 0:
             self.plan(state)
         self.tick += 1
-        return np.clip(feedback(state, self.model) + self.bias, -1, 1).astype(np.float32)
+        return np.clip(self._feedback(state) + self.bias, -1, 1).astype(np.float32)
 
 
 class FeedbackController:

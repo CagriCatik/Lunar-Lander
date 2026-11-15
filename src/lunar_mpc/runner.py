@@ -13,17 +13,19 @@ import numpy as np
 from .controller import FeedbackController, MPCController
 from .environment import classify_outcome, make_environment
 from .model import FlightModel, decode_observation, engine_power
+from .robust import RobustMPCController
 
 
 def run_episode(config, seed, controller_name="mpc", render=False):
-    if controller_name not in {"mpc", "feedback"}:
-        raise ValueError("controller_name must be 'mpc' or 'feedback'")
+    if controller_name not in {"mpc", "nominal", "feedback"}:
+        raise ValueError("controller_name must be 'mpc', 'nominal' or 'feedback'")
     model = FlightModel(gravity=config.environment.gravity)
-    controller = (
-        MPCController(config.mpc, model, seed)
-        if controller_name == "mpc"
-        else FeedbackController(model)
-    )
+    if controller_name == "mpc":
+        controller = RobustMPCController(config.mpc, model, config.robust, seed)
+    elif controller_name == "nominal":
+        controller = MPCController(config.mpc, model, seed)
+    else:
+        controller = FeedbackController(model)
     env = make_environment(config.environment, render)
     rows, predictions, latencies = [], [], []
     reward_total = 0.0
@@ -32,6 +34,7 @@ def run_episode(config, seed, controller_name="mpc", render=False):
     visualizer = None
     user_closed = False
     planning_latencies = []
+    touchdown_control_steps = 0
     try:
         observation, _ = env.reset(seed=seed)
         if render:
@@ -44,6 +47,8 @@ def run_episode(config, seed, controller_name="mpc", render=False):
             action = controller.act(observation)
             latency = (time.perf_counter() - before) * 1000
             latencies.append(latency)
+            if any(observation[6:]) and abs(action[1]) > 0.5:
+                touchdown_control_steps += 1
             replanned = getattr(controller, "plans", 0) > plans_before
             if replanned:
                 planning_latencies.append(latency)
@@ -60,6 +65,7 @@ def run_episode(config, seed, controller_name="mpc", render=False):
                     float(main),
                     float(side),
                     latency,
+                    *getattr(controller, "disturbance", np.zeros(3)),
                 ]
             )
             if replanned:
@@ -76,7 +82,12 @@ def run_episode(config, seed, controller_name="mpc", render=False):
                 }
             if visualizer is not None:
                 user_closed = not visualizer.draw(
-                    state, controller.prediction, reward_total, latency, action
+                    state,
+                    controller.prediction,
+                    reward_total,
+                    latency,
+                    action,
+                    getattr(controller, "disturbance", None),
                 )
             if terminated or truncated or user_closed:
                 break
@@ -98,6 +109,7 @@ def run_episode(config, seed, controller_name="mpc", render=False):
             "control_over_20ms_fraction": sum(t > 20 for t in latencies) / len(latencies),
             "final_state": decode_observation(observation).tolist(),
             "final_contacts": [bool(v) for v in observation[6:]],
+            "touchdown_control_steps": touchdown_control_steps,
         }
         return summary, rows, predictions
     finally:
@@ -120,6 +132,9 @@ COLUMNS = [
     "main_power",
     "side_power",
     "control_ms",
+    "estimated_ax",
+    "estimated_ay",
+    "estimated_angular_accel",
 ]
 
 
@@ -136,7 +151,10 @@ def save_episode(directory, summary, rows, predictions, config, plot=True):
         "python": platform.python_version(),
         "platform": platform.platform(),
         "environment_id": "LunarLander-v3",
-        "packages": {name: version(name) for name in ("gymnasium", "numpy", "Box2D", "pygame")},
+        "packages": {
+            name: version(name)
+            for name in ("lunar-lander-mpc", "gymnasium", "numpy", "Box2D", "pygame")
+        },
     }
     (directory / "runtime.json").write_text(json.dumps(runtime, indent=2) + "\n")
     (directory / "predictions.json").write_text(json.dumps(predictions) + "\n")
@@ -147,11 +165,23 @@ def save_episode(directory, summary, rows, predictions, config, plot=True):
 
 
 def aggregate(summaries):
+    plans = sum(s.get("plans", 0) for s in summaries)
+    steps = sum(s["steps"] for s in summaries)
     return {
         "episodes": len(summaries),
         "landing_rate": sum(s["outcome"] == "landed" for s in summaries) / len(summaries),
         "score_200_rate": sum(s["score_at_least_200"] for s in summaries) / len(summaries),
         "mean_reward": float(np.mean([s["reward"] for s in summaries])),
         "mean_control_ms": float(np.mean([s["mean_control_ms"] for s in summaries])),
+        "mean_plan_ms": (
+            sum((s.get("mean_plan_ms") or 0) * s.get("plans", 0) for s in summaries) / plans
+            if plans
+            else None
+        ),
+        "max_control_ms": max(s["max_control_ms"] for s in summaries),
+        "control_over_20ms_fraction": sum(
+            s.get("control_over_20ms_fraction", 0) * s["steps"] for s in summaries
+        )
+        / steps,
         "episodes_detail": summaries,
     }

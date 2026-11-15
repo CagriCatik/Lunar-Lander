@@ -1,4 +1,4 @@
-# Stress scenario, not a claim of robust MPC or guaranteed disturbance rejection.
+# Moderate wind; same environment as the v0.1 reference.
 [environment]
 gravity = -10.0
 wind = true
@@ -7,12 +7,21 @@ turbulence_power = 0.5
 max_steps = 1000
 
 [mpc]
-horizon = 30
-dt = 0.04
-knots = 6
-samples = 96
-elites = 12
-iterations = 3
+horizon = 20
+dt = 0.06
+knots = 5
+samples = 64
+elites = 8
+iterations = 2
 replan_interval = 3
-noise = 0.45
+noise = 0.4
 min_std = 0.08
+
+[robust]
+observer_tau = 0.18
+warmup_steps = 8
+max_linear_accel = 6.0
+max_angular_accel = 3.0
+wind_margin = 0.4
+torque_margin = 0.15
+risk_weight = 0.5

@@ -39,3 +39,15 @@ def test_ballistic_motion_and_vectorised_predictions():
     assert batch[2, 2] > result[2]
     assert batch[2, 5] < 0  # Positive lateral command produces negative torque.
     np.testing.assert_array_equal(state, [0, 5, 1, -1, 0, 0])
+
+
+def test_coarse_prediction_matches_substeps_under_constant_acceleration():
+    model = FlightModel()
+    state = np.array([0, 5, 1, -1, 0, 0], dtype=float)
+    disturbance = np.array([1, -0.5, 0])
+    action = [0.5, 0]
+    fine = state.copy()
+    for _ in range(3):
+        fine = model.step(fine, action, disturbance=disturbance)
+    coarse = model.coarse_step(state, action, 0.06, disturbance)
+    np.testing.assert_allclose(coarse, fine, atol=1e-12)

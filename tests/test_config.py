@@ -1,6 +1,6 @@
 import pytest
 
-from lunar_mpc.config import EnvironmentConfig, MPCConfig, load_config
+from lunar_mpc.config import EnvironmentConfig, MPCConfig, RobustConfig, load_config
 
 
 @pytest.mark.parametrize(
@@ -52,12 +52,17 @@ def test_partial_configuration_preserves_defaults(tmp_path):
     config.write_text("[mpc]\nsamples = 24\nelites = 4\n")
     loaded = load_config(config)
     assert loaded.mpc.samples == 24
-    assert loaded.mpc.horizon == 30
+    assert loaded.mpc.horizon == 20
     assert loaded.environment.gravity == -10
 
 
 def test_shipped_presets_load():
-    for path in ("configs/default.toml", "configs/wind.toml"):
+    for path in (
+        "configs/default.toml",
+        "configs/wind.toml",
+        "configs/strong-wind.toml",
+        "configs/v1-wind.toml",
+    ):
         assert load_config(path).mpc.samples > 1
 
 
@@ -65,3 +70,33 @@ def test_shipped_presets_load():
 def test_prediction_interval_cannot_skip_physics(dt):
     with pytest.raises(ValueError):
         MPCConfig(dt=dt)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"observer_tau": 0},
+        {"wind_margin": -1},
+        {"torque_margin": float("nan")},
+        {"risk_weight": 1.1},
+        {"warmup_steps": -1},
+        {"warmup_steps": True},
+        {"max_linear_accel": float("inf")},
+        {"max_angular_accel": False},
+    ],
+)
+def test_invalid_robust_configuration(kwargs):
+    with pytest.raises(ValueError):
+        RobustConfig(**kwargs)
+
+
+def test_benchmark_reference_has_matched_environment_and_original_solver_budget():
+    from lunar_mpc.benchmark import benchmark_cases
+
+    cases = benchmark_cases()
+    _, candidate = cases["wind"]
+    controller, reference = cases["nominal-wind"]
+    assert controller == "nominal"
+    assert candidate.environment == reference.environment
+    assert candidate.mpc.samples == 64
+    assert reference.mpc.samples == 96

@@ -1,4 +1,4 @@
-# Reference benchmark
+# v0.1 reference benchmark
 
 Measured on **15 November 2026**, with the checked-in defaults, a shared Linux
 x86_64 runner, Python 3.12.14, Gymnasium 1.2.3, Box2D 2.3.10, NumPy 2.5.4 and
@@ -51,7 +51,12 @@ conclusions. There is no asynchronous solver or hard deadline fallback.
 
 ## Reproduce
 
+These are historical v0.1 results. Current `main` defaults to the revised controller.
+To reproduce this original table, create an isolated checkout of the original commit:
+
 ```bash
+git worktree add --detach ../Lunar-Lander-v0.1 fcacfe05f2b158a2c94a7de9241da7d926c17a75
+cd ../Lunar-Lander-v0.1
 ./scripts/setup.sh --dev
 ./scripts/evaluate.sh --episodes 50 --seed 0 --output runs/mpc-reference
 ./scripts/evaluate.sh --controller feedback --episodes 50 --seed 0 --output runs/feedback-reference

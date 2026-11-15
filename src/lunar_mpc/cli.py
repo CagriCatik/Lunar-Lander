@@ -27,7 +27,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["run", "evaluate"])
     parser.add_argument("--config", type=Path, default=None)
-    parser.add_argument("--controller", choices=["mpc", "feedback"], default="mpc")
+    parser.add_argument("--controller", choices=["mpc", "nominal", "feedback"], default="mpc")
     parser.add_argument(
         "--seed", type=nonnegative_int, default=0, help="First environment and controller seed"
     )

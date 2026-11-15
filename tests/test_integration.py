@@ -37,6 +37,8 @@ def test_timeout_telemetry_and_saved_artifacts(tmp_path):
     save_episode(tmp_path, summary, rows, predictions, config, plot=True)
     assert json.loads((tmp_path / "summary.json").read_text())["seed"] == 0
     assert (tmp_path / "flight.png").stat().st_size > 1000
+    assert (tmp_path / "diagnostics.png").stat().st_size > 1000
+    assert len(rows[0]) == 18
     assert len((tmp_path / "telemetry.csv").read_text().splitlines()) == 4
 
 
@@ -68,3 +70,33 @@ def test_window_close_returns_a_saved_outcome(monkeypatch):
     )
     assert summary["outcome"] == "user_closed"
     assert len(rows) == 1
+
+
+@pytest.mark.parametrize("seed", [0, 8])
+def test_wind_landings_cover_previously_failing_contact_cases(seed):
+    from lunar_mpc.config import load_config
+
+    summary, _, _ = run_episode(load_config("configs/wind.toml"), seed=seed)
+    assert summary["outcome"] == "landed"
+    assert summary["reward"] > 200
+
+
+def test_nominal_controller_preserves_v1_reference_behaviour():
+    from dataclasses import replace
+
+    from lunar_mpc.config import load_config
+
+    config = load_config("configs/v1-wind.toml")
+    config = replace(config, environment=replace(config.environment, wind=False))
+    summary, _, _ = run_episode(config, seed=0, controller_name="nominal")
+    assert summary["outcome"] == "landed"
+    # Box2D/platform floating-point differences need not preserve every reward digit.
+    assert summary["reward"] == pytest.approx(244.610411, abs=1.0)
+
+
+def test_low_gravity_lands_instead_of_hovering_above_the_minimum_throttle_limit():
+    from lunar_mpc.benchmark import benchmark_cases
+
+    controller, config = benchmark_cases()["low-gravity"]
+    summary, _, _ = run_episode(config, seed=110, controller_name=controller)
+    assert summary["outcome"] == "landed"

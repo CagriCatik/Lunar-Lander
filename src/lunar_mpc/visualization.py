@@ -20,7 +20,7 @@ class FlightOverlay:
         y = 400 - (points[:, 1] + self.env.helipad_y + 18 / 30) * 30
         return np.clip(np.column_stack([x, y]), -10000, 10000).astype(int).tolist()
 
-    def draw(self, state, prediction, reward, latency, action):
+    def draw(self, state, prediction, reward, latency, action, disturbance=None):
         pygame = self.pygame
         for event in pygame.event.get():
             if event.type == pygame.QUIT or (
@@ -38,6 +38,11 @@ class FlightOverlay:
             f"Main {action[0]:+.2f}  |  Lateral {action[1]:+.2f}",
             "Cyan: actual flight   Yellow: nominal MPC prediction",
         ]
+        if disturbance is not None:
+            lines.append(
+                f"Estimated bias  ax {disturbance[0]:+.2f}  ay {disturbance[1]:+.2f}  "
+                f"alpha {disturbance[2]:+.2f}"
+            )
         for row, text in enumerate(lines):
             surface = self.font.render(text, True, (220, 230, 245), (12, 16, 28))
             screen.blit(surface, (10, 10 + row * 20))

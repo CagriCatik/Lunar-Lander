@@ -8,7 +8,7 @@ import sys
 import gymnasium as gym
 print(f"Python {platform.python_version()} | {platform.system()} {platform.machine()}")
 print(f"Interpreter: {sys.executable}")
-for package in ("gymnasium", "numpy", "Box2D", "pygame"):
+for package in ("lunar-lander-mpc", "gymnasium", "numpy", "Box2D", "pygame"):
     print(f"{package}: {importlib.metadata.version(package)}")
 env = gym.make("LunarLander-v3", continuous=True)
 try:

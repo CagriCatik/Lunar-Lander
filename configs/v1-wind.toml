@@ -1,0 +1,19 @@
+# Original v0.1 solver budget for matched-environment comparisons.
+# Stress scenario, not a claim of robust MPC or guaranteed disturbance rejection.
+[environment]
+gravity = -10.0
+wind = true
+wind_power = 10.0
+turbulence_power = 0.5
+max_steps = 1000
+
+[mpc]
+horizon = 30
+dt = 0.04
+knots = 6
+samples = 96
+elites = 12
+iterations = 3
+replan_interval = 3
+noise = 0.45
+min_std = 0.08
